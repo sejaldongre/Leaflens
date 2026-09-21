@@ -1,0 +1,90 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*$py.class
+
+# =========================
+# Virtual environments
+# =========================
+cnn_env/
+venv/
+env/
+.venv/
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Images / raw datasets
+# =========================
+*.jpg
+*.jpeg
+*.png
+*.JPG
+*.JPEG
+*.PNG
+
+data/raw/
+
+# =========================
+# Processed experiment data
+# =========================
+data/processed/*.npz
+data/processed/**/*.npz
+
+data/processed/*.npy
+data/processed/**/*.npy
+
+data/processed/*.pkl
+data/processed/**/*.pkl
+
+data/processed/*.txt
+data/processed/**/*.txt
+
+# =========================
+# CNN models
+# Ignore every model
+# =========================
+data/processed/cnn/*.keras
+
+# Keep ONLY deployment model
+!data/processed/cnn/mobilenetv3small_finetuned_best.keras
+
+# =========================
+# Other model formats
+# =========================
+*.h5
+*.ckpt
+*.pb
+*.tflite
+
+# =========================
+# Logs / temporary files
+# =========================
+*.log
+*.tmp
+*.temp
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Build
+# =========================
+build/
+dist/
+*.egg-info/
