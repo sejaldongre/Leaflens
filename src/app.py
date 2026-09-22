@@ -90,6 +90,9 @@ if "selected_image" not in st.session_state:
 if "predicted_plant" not in st.session_state:
     st.session_state.predicted_plant = None
 
+if "prediction_unknown" not in st.session_state:
+    st.session_state.prediction_unknown = False
+
 
 # ============================================================
 # LOAD MODEL
@@ -110,10 +113,9 @@ model = load_model()
 # MODEL PREDICTION
 # ============================================================
 
-def predict_plant(image):
-
+def _prepare_image(image):
+    """Apply the exact preprocessing used during CNN training."""
     image = image.convert("RGB")
-
     image = image.resize(
         (224, 224),
         Image.Resampling.BILINEAR,
@@ -124,24 +126,33 @@ def predict_plant(image):
         dtype=np.float32,
     )
 
-    # Same preprocessing used during CNN training
     image_array = (image_array / 127.5) - 1.0
-
     image_array = np.expand_dims(
         image_array,
         axis=0,
     )
 
+    return image_array
+
+
+def predict_plant(image):
+    """Predict the plant using the trained CNN."""
+    image_array = _prepare_image(image)
+
     predictions = model.predict(
         image_array,
         verbose=0,
-    )
+    )[0]
 
-    predicted_index = int(
-        np.argmax(predictions[0])
-    )
+    predicted_index = int(np.argmax(predictions))
+    predicted_plant = CLASS_NAMES[predicted_index]
 
-    return CLASS_NAMES[predicted_index]
+    return predicted_plant
+
+
+def classify_plant(image):
+    """Return the top CNN prediction without an additional safeguard."""
+    return predict_plant(image), False
 
 
 # ============================================================
@@ -393,94 +404,75 @@ header {
 
 
 /* ==========================================================
-   RESULT
+   UNKNOWN / UNSUPPORTED RESULT
 ========================================================== */
 
-/* Compact information cards used on the plant result page */
-.result-about-card {
-    margin-top: 1.5rem;
-    min-height: auto !important;
-    padding: 2.15rem !important;
-}
-
-.characteristics-title {
-    color: #1b402a;
-    font-family: 'Playfair Display', serif;
-    font-size: 2.05rem;
-    font-weight: 600;
-    line-height: 1.1;
-    letter-spacing: -0.03em;
-    margin: 1.6rem 0 1rem 0;
-}
-
-.characteristic-card {
-    min-height: 0 !important;
-    height: 100%;
-    padding: 1.65rem !important;
+.unknown-card {
     background: #fffdf8;
-    border: 1px solid #e1e4d9;
-    border-radius: 24px;
-    box-shadow: 0 12px 34px rgba(35, 65, 43, 0.06);
+
+    border: 1px solid #dfe5da;
+
+    border-radius: 28px;
+
+    padding: 3rem 2.5rem;
+
+    margin-top: 2rem;
+
+    text-align: center;
+
+    box-shadow:
+        0 18px 50px rgba(35, 65, 43, 0.08);
 }
 
-.characteristic-item {
-    margin-bottom: 1.55rem;
+.unknown-icon {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
 }
 
-.characteristic-item:last-child {
-    margin-bottom: 0;
-}
+.unknown-title {
+    color: #193d28;
 
-.characteristic-icon {
-    font-size: 2rem;
-    line-height: 1;
-    margin-bottom: 0.55rem;
-}
-
-.characteristic-heading {
-    color: #1b402a;
     font-family: 'Playfair Display', serif;
-    font-size: 1.35rem;
+
+    font-size: 2.7rem;
     font-weight: 600;
-    line-height: 1.15;
-    margin-bottom: 0.45rem;
+
+    line-height: 1.05;
+
+    margin-bottom: 1rem;
 }
 
-.characteristic-text {
+.unknown-description {
+    max-width: 650px;
+    margin: 0 auto;
+
     color: #68746c;
+
     font-family: 'DM Sans', sans-serif;
-    font-size: 0.98rem;
-    line-height: 1.65;
+    font-size: 1.05rem;
+    line-height: 1.7;
 }
 
-.result-info-box {
-    margin-top: 1.25rem !important;
-    padding: 1.25rem 1.5rem !important;
+.unknown-note {
+    max-width: 620px;
+    margin: 1.5rem auto 0;
+
+    padding: 1rem 1.2rem;
+
+    background: #e2ecde;
+    border: 1px solid #d2dfcb;
+    border-radius: 18px;
+
+    color: #34583e;
+
+    font-family: 'DM Sans', sans-serif;
+    line-height: 1.6;
 }
 
-.result-fact-box {
-    margin-top: 0.9rem !important;
-    background: #f1eee3 !important;
-    border-color: #ddd7c5 !important;
-}
 
-@media (max-width: 768px) {
-    .result-name {
-        font-size: 2.8rem;
-    }
-
-    .result-about-card {
-        padding: 1.6rem !important;
-    }
-
-    .characteristic-card {
-        padding: 1.35rem !important;
-    }
-
-    .characteristics-title {
-        font-size: 1.8rem;
-    }
-}
+/* ==========================================================
+   RESULT
+========================================================== */
 
 .result-card {
     background: #fffdf8;
@@ -1049,11 +1041,12 @@ from your device.
                             camera_image
                         )
 
-                        prediction = predict_plant(
+                        prediction, is_unknown = classify_plant(
                             image
                         )
 
                     st.session_state.predicted_plant = prediction
+                    st.session_state.prediction_unknown = is_unknown
 
                     go_to("result")
 
@@ -1128,11 +1121,12 @@ from your device.
                             uploaded_image
                         )
 
-                        prediction = predict_plant(
+                        prediction, is_unknown = classify_plant(
                             image
                         )
 
                     st.session_state.predicted_plant = prediction
+                    st.session_state.prediction_unknown = is_unknown
 
                     go_to("result")
 
@@ -1220,9 +1214,8 @@ Enter the plant name below and explore its information.
                 info = get_plant_info(class_name)
 
                 if info:
-                    database_name = info.get(
-                        "display_name", class_name
-                    ).lower().replace("_", " ")
+                    database_name = info["display_name"].lower().replace(
+                        "_", " ")
                     class_display = class_name.lower().replace("_", " ")
 
                     if entered_name == database_name or entered_name == class_display:
@@ -1231,6 +1224,7 @@ Enter the plant name below and explore its information.
 
             if matched_key:
                 st.session_state.predicted_plant = matched_key
+                st.session_state.prediction_unknown = False
                 go_to("result")
 
             else:
@@ -1285,48 +1279,51 @@ elif st.session_state.page == "result":
         unsafe_allow_html=True,
     )
 
-    if plant_name:
+    if st.session_state.prediction_unknown:
+
+        st.markdown(
+            """
+<div class="unknown-card">
+
+<div class="unknown-icon">🌿</div>
+
+<div class="unknown-title">
+Plant not confidently recognized
+</div>
+
+<div class="unknown-description">
+LeafLens could not confidently match this image to one of its
+supported plant classes. Try a clear photo focused on the leaf
+with good lighting and minimal background.
+</div>
+
+<div class="unknown-note">
+<strong>LeafLens currently supports 40 plant classes.</strong><br>
+If the plant is outside the supported classes, the app will ask
+you to try another image instead of presenting an uncertain
+identification as a result.
+</div>
+
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    elif plant_name:
 
         plant_info = get_plant_info(plant_name)
 
         if plant_info:
 
-            # Use safe lookups so the app never crashes with a KeyError
-            # if a plant-info entry is incomplete or an older cached module
-            # is temporarily being used by Streamlit.
-            display_name = plant_info.get("display_name", plant_name)
-            scientific_name = plant_info.get(
-                "scientific_name",
-                "Scientific name not available"
-            )
-            description = plant_info.get(
-                "description",
-                "Plant description is not currently available."
-            )
-            plant_type = plant_info.get(
-                "plant_type",
-                "Information not available"
-            )
-            leaf_features = plant_info.get(
-                "leaf_features",
-                "Information not available"
-            )
-            flowers_or_fruit = plant_info.get(
-                "flowers_or_fruit",
-                "Information not available"
-            )
-            habitat = plant_info.get(
-                "habitat",
-                "Information not available"
-            )
-            common_uses = plant_info.get(
-                "common_uses",
-                "Information not available"
-            )
-            interesting_fact = plant_info.get(
-                "interesting_fact",
-                "Information not available"
-            )
+            display_name = plant_info["display_name"]
+            scientific_name = plant_info["scientific_name"]
+            description = plant_info["description"]
+            plant_type = plant_info["plant_type"]
+            leaf_features = plant_info["leaf_features"]
+            flowers_or_fruit = plant_info["flowers_or_fruit"]
+            habitat = plant_info["habitat"]
+            common_uses = plant_info["common_uses"]
+            interesting_fact = plant_info["interesting_fact"]
 
             # ----------------------------------------------------
             # IDENTIFICATION CARD
@@ -1369,7 +1366,7 @@ LeafLens identification
 
             st.markdown(
                 f"""
-<div class="search-card-content result-about-card">
+<div class="search-card-content" style="margin-top:2rem;">
 
 <div class="card-title">
 About {display_name}
@@ -1379,13 +1376,14 @@ About {display_name}
 {description}
 </div>
 
+<br>
+
 <div style="
     color:#748078;
     font-size:0.78rem;
     font-weight:700;
     letter-spacing:0.14em;
     text-transform:uppercase;
-    margin-top:1.35rem;
 ">
 Scientific name
 </div>
@@ -1394,7 +1392,7 @@ Scientific name
     color:#1b402a;
     font-family:'Playfair Display', serif;
     font-size:1.55rem;
-    margin-top:0.35rem;
+    margin-top:0.4rem;
 ">
 <i>{scientific_name}</i>
 </div>
@@ -1411,7 +1409,7 @@ Scientific name
             # ----------------------------------------------------
 
             st.markdown(
-                '<div class="characteristics-title">'
+                '<div class="card-title" style="margin-top:1rem;">'
                 'Plant characteristics'
                 '</div>',
                 unsafe_allow_html=True,
@@ -1422,34 +1420,28 @@ Scientific name
             with col1:
                 st.markdown(
                     f"""
-<div class="characteristic-card">
+<div class="search-card-content" style="min-height:220px;">
 
-<div class="characteristic-item">
+<div style="font-size:2rem; margin-bottom:0.8rem;">🌱</div>
 
-<div class="characteristic-icon">🌱</div>
-
-<div class="characteristic-heading">
+<div class="card-title" style="font-size:1.45rem;">
 Plant type
 </div>
 
-<div class="characteristic-text">
+<div class="card-description">
 {plant_type}
 </div>
 
-</div>
+<br>
 
-<div class="characteristic-item">
+<div style="font-size:2rem; margin-bottom:0.8rem;">🍃</div>
 
-<div class="characteristic-icon">🍃</div>
-
-<div class="characteristic-heading">
+<div class="card-title" style="font-size:1.45rem;">
 Leaf features
 </div>
 
-<div class="characteristic-text">
+<div class="card-description">
 {leaf_features}
-</div>
-
 </div>
 
 </div>
@@ -1460,34 +1452,28 @@ Leaf features
             with col2:
                 st.markdown(
                     f"""
-<div class="characteristic-card">
+<div class="search-card-content" style="min-height:220px;">
 
-<div class="characteristic-item">
+<div style="font-size:2rem; margin-bottom:0.8rem;">🌸</div>
 
-<div class="characteristic-icon">🌸</div>
-
-<div class="characteristic-heading">
+<div class="card-title" style="font-size:1.45rem;">
 Flowers & fruit
 </div>
 
-<div class="characteristic-text">
+<div class="card-description">
 {flowers_or_fruit}
 </div>
 
-</div>
+<br>
 
-<div class="characteristic-item">
+<div style="font-size:2rem; margin-bottom:0.8rem;">🌍</div>
 
-<div class="characteristic-icon">🌍</div>
-
-<div class="characteristic-heading">
+<div class="card-title" style="font-size:1.45rem;">
 Habitat & growth
 </div>
 
-<div class="characteristic-text">
+<div class="card-description">
 {habitat}
-</div>
-
 </div>
 
 </div>
@@ -1501,7 +1487,7 @@ Habitat & growth
 
             st.markdown(
                 f"""
-<div class="info-box result-info-box">
+<div class="info-box">
 
 <strong>Common uses</strong>
 
@@ -1518,7 +1504,11 @@ Habitat & growth
 
             st.markdown(
                 f"""
-<div class="info-box result-info-box result-fact-box">
+<div class="info-box" style="
+    margin-top:1rem;
+    background:#f1eee3;
+    border-color:#ddd7c5;
+">
 
 <strong>🌿 Did you know?</strong>
 
